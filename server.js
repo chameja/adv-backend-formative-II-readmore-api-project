@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 
 const authorRoutes = require('./routes/authorRoutes');
+const bookRoutes = require('./routes/bookRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,6 +17,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/authors', authorRoutes);
+app.use('/books', bookRoutes);
 
 async function start() {
   if (!MONGO_URI) {
