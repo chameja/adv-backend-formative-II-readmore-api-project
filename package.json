@@ -1,0 +1,29 @@
+{
+  "name": "readmore-api",
+  "version": "1.0.0",
+  "description": "ReadMore bookstore REST API built with Express, MongoDB and Mongoose.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chameja/adv-backend-formative-II-readmore-api-project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/chameja/adv-backend-formative-II-readmore-api-project/issues"
+  },
+  "homepage": "https://github.com/chameja/adv-backend-formative-II-readmore-api-project#readme",
+  "dependencies": {
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "mongoose": "^9.12.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
