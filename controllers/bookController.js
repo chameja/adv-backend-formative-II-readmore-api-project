@@ -1,6 +1,7 @@
 const Author = require('../models/Author');
 const Book = require('../models/Book');
 const { validateBookRules, escapeRegex } = require('../utils/bookRules');
+const { buildBookQuery, QueryError } = require('../utils/bookQuery');
 
 const BOOK_FIELDS = ['title', 'genre', 'price', 'publishedYear', 'author'];
 
@@ -86,11 +87,23 @@ const createBook = async (req, res) => {
 };
 
 // GET /books
+// Optional params: genre, minPrice, maxPrice, author, search, sort, order,
+// page, limit. Responds with { page, limit, total, results }, where total is
+// the number of books matching the filter (not the whole collection).
 const getBooks = async (req, res) => {
   try {
-    const books = await Book.find().populate('author').sort({ title: 1 });
-    res.status(200).json(books);
+    const { filter, sort, page, limit, skip } = buildBookQuery(req.query);
+
+    const [total, results] = await Promise.all([
+      Book.countDocuments(filter),
+      Book.find(filter).sort(sort).skip(skip).limit(limit).populate('author'),
+    ]);
+
+    res.status(200).json({ page, limit, total, results });
   } catch (err) {
+    if (err instanceof QueryError) {
+      return res.status(400).json({ message: err.message });
+    }
     res.status(500).json({ message: 'Failed to fetch books' });
   }
 };
