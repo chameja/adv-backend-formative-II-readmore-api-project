@@ -60,13 +60,24 @@ const updateAuthor = async (req, res) => {
 };
 
 // DELETE /authors/:id
-// Plain delete for now; the no-orphans policy is added in Phase 5.
+// Delete policy A (Block): an author who still has books can't be deleted
+// (409). The client must delete or reassign those books first, so no book is
+// ever left pointing at a missing author and nothing is lost by accident.
 const deleteAuthor = async (req, res) => {
   try {
-    const author = await Author.findByIdAndDelete(req.params.id);
+    const author = await Author.findById(req.params.id);
     if (!author) {
       return res.status(404).json({ message: `No author found with id ${req.params.id}` });
     }
+
+    const bookCount = await Book.countDocuments({ author: author._id });
+    if (bookCount > 0) {
+      return res.status(409).json({
+        message: `Cannot delete author "${author.name}": they still have ${bookCount} book${bookCount === 1 ? '' : 's'}. Delete or reassign the books first.`,
+      });
+    }
+
+    await author.deleteOne();
     res.status(200).json({ message: 'Author deleted', author });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete author' });
