@@ -1,0 +1,401 @@
+# ReadMore API: request collection
+#
+# For the VS Code "REST Client" extension (humao.rest-client).
+# Click "Send Request" above each request. Run them top to bottom the first
+# time: later requests use ids captured from earlier ones (# @name ...).
+# Each run creates a fresh author, so the file can be re-run without
+# hitting the duplicate-title rule by accident.
+# Run `npm run seed` first for the filter and stats examples.
+
+@baseUrl = http://localhost:3000
+@missingId = 64b7f0000000000000000000
+
+### Health check → 200
+GET {{baseUrl}}/
+
+
+#####################################################################
+# Authors
+#####################################################################
+
+### Create an author → 201
+# @name createAuthor
+POST {{baseUrl}}/authors
+Content-Type: application/json
+
+{
+  "name": "Demo Author",
+  "country": "Kenya",
+  "bio": "Created by requests.http"
+}
+
+### Create a second author (used for "same title, different author") → 201
+# @name createOtherAuthor
+POST {{baseUrl}}/authors
+Content-Type: application/json
+
+{
+  "name": "Other Demo Author"
+}
+
+### Create an author with no name → 400
+POST {{baseUrl}}/authors
+Content-Type: application/json
+
+{
+  "country": "Kenya"
+}
+
+### List all authors → 200
+GET {{baseUrl}}/authors
+
+### Get one author → 200
+GET {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}
+
+### Get an unknown author → 404
+GET {{baseUrl}}/authors/{{missingId}}
+
+### Get an author with a malformed id → 400
+GET {{baseUrl}}/authors/not-an-id
+
+### Update an author (partial: only bio changes) → 200
+PUT {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "bio": "Updated bio"
+}
+
+### Update an author to an empty name → 400
+PUT {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### Update an unknown author → 404
+PUT {{baseUrl}}/authors/{{missingId}}
+Content-Type: application/json
+
+{
+  "bio": "Nobody"
+}
+
+
+#####################################################################
+# Books
+#####################################################################
+
+### Create a book → 201
+# @name createBook
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "The Silent Sea",
+  "genre": "Thriller",
+  "price": 24.99,
+  "publishedYear": 2021,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Create a second book for the same author → 201
+# @name createSecondBook
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Harbour Lights",
+  "genre": "Romance",
+  "price": 9.5,
+  "publishedYear": 2019,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### List books (author is populated) → 200
+GET {{baseUrl}}/books
+
+### Get one book (author is populated) → 200
+GET {{baseUrl}}/books/{{createBook.response.body.$._id}}
+
+### Get an unknown book → 404
+GET {{baseUrl}}/books/{{missingId}}
+
+### Get a book with a malformed id → 400
+GET {{baseUrl}}/books/not-an-id
+
+### Update a book (partial: only price changes) → 200
+PUT {{baseUrl}}/books/{{createBook.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "price": 19.99
+}
+
+### Update an unknown book → 404
+PUT {{baseUrl}}/books/{{missingId}}
+Content-Type: application/json
+
+{
+  "price": 10
+}
+
+### All books by an author → 200
+GET {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}/books
+
+### Books by an unknown author → 404
+GET {{baseUrl}}/authors/{{missingId}}/books
+
+
+#####################################################################
+# Rule 1: no orphan books (400)
+#####################################################################
+
+### Create a book for an author that doesn't exist → 400
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Orphan",
+  "genre": "Thriller",
+  "price": 10,
+  "author": "{{missingId}}"
+}
+
+### Move a book to an author that doesn't exist → 400
+PUT {{baseUrl}}/books/{{createBook.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "author": "{{missingId}}"
+}
+
+
+#####################################################################
+# Rule 2: no duplicate titles per author (409)
+#####################################################################
+
+### Same title, same author, different case → 409
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "the silent sea",
+  "genre": "Thriller",
+  "price": 15,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Same title, different author → 201
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "The Silent Sea",
+  "genre": "Thriller",
+  "price": 15,
+  "author": "{{createOtherAuthor.response.body.$._id}}"
+}
+
+### Rename a book to another of the author's titles → 409
+PUT {{baseUrl}}/books/{{createSecondBook.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "title": "THE SILENT SEA"
+}
+
+
+#####################################################################
+# Rule 3: price and year (422)
+#####################################################################
+
+### Price of 0 → 422
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Free Book",
+  "genre": "Thriller",
+  "price": 0,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Negative price → 422
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Negative Book",
+  "genre": "Thriller",
+  "price": -5,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Year before 1450 → 422
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Ancient Book",
+  "genre": "History",
+  "price": 10,
+  "publishedYear": 1449,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Year in the future → 422
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Future Book",
+  "genre": "Sci-Fi",
+  "price": 10,
+  "publishedYear": 3000,
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Update with a bad price → 422
+PUT {{baseUrl}}/books/{{createBook.response.body.$._id}}
+Content-Type: application/json
+
+{
+  "price": -1
+}
+
+
+#####################################################################
+# Other book validation (400)
+#####################################################################
+
+### Missing required fields → 400
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "genre": "Thriller"
+}
+
+### Wrong type for price → 400
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{
+  "title": "Typo Book",
+  "genre": "Thriller",
+  "price": "abc",
+  "author": "{{createAuthor.response.body.$._id}}"
+}
+
+### Body that isn't valid JSON → 400
+POST {{baseUrl}}/books
+Content-Type: application/json
+
+{ "title": "Broken",
+
+
+#####################################################################
+# Rule 5: search, filter, sort, pagination on GET /books
+# (run `npm run seed` first)
+#####################################################################
+
+### Only genre (case doesn't matter) → 200
+GET {{baseUrl}}/books?genre=thriller
+
+### Only minPrice → 200
+GET {{baseUrl}}/books?minPrice=15
+
+### Price range → 200
+GET {{baseUrl}}/books?minPrice=10&maxPrice=20
+
+### Title search → 200
+GET {{baseUrl}}/books?search=sea
+
+### Only books by one author → 200
+GET {{baseUrl}}/books?author={{createAuthor.response.body.$._id}}
+
+### Several filters combined, sorted → 200
+GET {{baseUrl}}/books?genre=Thriller&minPrice=10&maxPrice=30&search=sea&sort=price&order=asc
+
+### Sort newest first → 200
+GET {{baseUrl}}/books?sort=publishedYear&order=desc
+
+### Pagination: 3 per page, page 2 → 200
+GET {{baseUrl}}/books?limit=3&page=2
+
+### Invalid price filter → 400
+GET {{baseUrl}}/books?minPrice=abc
+
+### minPrice above maxPrice → 400
+GET {{baseUrl}}/books?minPrice=30&maxPrice=10
+
+### Malformed author filter → 400
+GET {{baseUrl}}/books?author=not-an-id
+
+### Sort field not allowed → 400
+GET {{baseUrl}}/books?sort=genre
+
+### Bad order → 400
+GET {{baseUrl}}/books?order=sideways
+
+### Bad page → 400
+GET {{baseUrl}}/books?page=0
+
+
+#####################################################################
+# Rule 6: author statistics
+#####################################################################
+
+### Stats for an author with books → 200
+GET {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}/stats
+
+### Stats for an author with no books → 200 (zero count, nulls)
+# @name emptyAuthor
+POST {{baseUrl}}/authors
+Content-Type: application/json
+
+{
+  "name": "Author With No Books"
+}
+
+###
+GET {{baseUrl}}/authors/{{emptyAuthor.response.body.$._id}}/stats
+
+### Stats for an unknown author → 404
+GET {{baseUrl}}/authors/{{missingId}}/stats
+
+
+#####################################################################
+# Rule 4: delete policy A (Block)
+#####################################################################
+
+### Delete an author who still has books → 409
+DELETE {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}
+
+### Delete their first book → 200
+DELETE {{baseUrl}}/books/{{createBook.response.body.$._id}}
+
+### Delete their second book → 200
+DELETE {{baseUrl}}/books/{{createSecondBook.response.body.$._id}}
+
+### Delete the same book again → 404
+DELETE {{baseUrl}}/books/{{createSecondBook.response.body.$._id}}
+
+### Now the author has no books, so the delete works → 200
+DELETE {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}
+
+### Delete the same author again → 404
+DELETE {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}
+
+### Delete an author with no books → 200
+DELETE {{baseUrl}}/authors/{{emptyAuthor.response.body.$._id}}
+
+
+#####################################################################
+# Unknown routes
+#####################################################################
+
+### Unknown URL → 404
+GET {{baseUrl}}/publishers
