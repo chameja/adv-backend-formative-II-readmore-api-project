@@ -98,6 +98,46 @@ const getAuthorBooks = async (req, res) => {
   }
 };
 
+// GET /authors/:id/stats
+// Summarises an author's books in one aggregation pipeline, so MongoDB does
+// the counting and averaging instead of sending every book to Node.
+// No books: bookCount 0 and null for everything else. A price of 0 would look
+// like real data (and break Rule 3), while null clearly means "no value".
+const getAuthorStats = async (req, res) => {
+  try {
+    const author = await Author.findById(req.params.id);
+    if (!author) {
+      return res.status(404).json({ message: `No author found with id ${req.params.id}` });
+    }
+
+    const bookSummary = { _id: '$_id', title: '$title', price: '$price' };
+    // aggregate() doesn't cast types like find() does, so match on the ObjectId
+    const [stats] = await Book.aggregate([
+      { $match: { author: author._id } },
+      {
+        $group: {
+          _id: null,
+          bookCount: { $sum: 1 },
+          averagePrice: { $avg: '$price' },
+          // Ties on price are broken by title, so the result is predictable
+          cheapestBook: { $top: { sortBy: { price: 1, title: 1 }, output: bookSummary } },
+          mostExpensiveBook: { $top: { sortBy: { price: -1, title: 1 }, output: bookSummary } },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      author: { _id: author._id, name: author.name },
+      bookCount: stats?.bookCount ?? 0,
+      averagePrice: stats ? Math.round((stats.averagePrice + Number.EPSILON) * 100) / 100 : null,
+      cheapestBook: stats?.cheapestBook ?? null,
+      mostExpensiveBook: stats?.mostExpensiveBook ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch author's stats" });
+  }
+};
+
 module.exports = {
   createAuthor,
   getAuthors,
@@ -105,4 +145,5 @@ module.exports = {
   updateAuthor,
   deleteAuthor,
   getAuthorBooks,
+  getAuthorStats,
 };

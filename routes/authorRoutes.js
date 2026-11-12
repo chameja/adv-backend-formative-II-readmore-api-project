@@ -6,6 +6,7 @@ const {
   updateAuthor,
   deleteAuthor,
   getAuthorBooks,
+  getAuthorStats,
 } = require('../controllers/authorController');
 const validateObjectId = require('../middleware/validateObjectId');
 
@@ -19,5 +20,6 @@ router.get('/:id', getAuthorById);
 router.put('/:id', updateAuthor);
 router.delete('/:id', deleteAuthor);
 router.get('/:id/books', getAuthorBooks);
+router.get('/:id/stats', getAuthorStats);
 
 module.exports = router;
