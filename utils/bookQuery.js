@@ -5,7 +5,14 @@ const SORT_FIELDS = ['price', 'title', 'publishedYear'];
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 100;
 
-class QueryError extends Error {}
+// An invalid query param. status tells the central error handler to send 400.
+class QueryError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'QueryError';
+    this.status = 400;
+  }
+}
 
 // Query params arrive as strings. A repeated param (?genre=a&genre=b) arrives
 // as an array, which none of these filters support, so it is rejected.

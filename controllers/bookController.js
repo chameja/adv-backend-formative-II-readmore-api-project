@@ -1,7 +1,10 @@
 const Author = require('../models/Author');
 const Book = require('../models/Book');
 const { validateBookRules, escapeRegex } = require('../utils/bookRules');
-const { buildBookQuery, QueryError } = require('../utils/bookQuery');
+const { buildBookQuery } = require('../utils/bookQuery');
+
+// Errors thrown here (ValidationError, CastError, QueryError) are passed by
+// Express 5 to the central error handler in middleware/errorHandler.js.
 
 const BOOK_FIELDS = ['title', 'genre', 'price', 'publishedYear', 'author'];
 
@@ -20,7 +23,7 @@ const pickBookFields = (body) => {
 // first failing check, or null if the book may be saved.
 //
 // Check order (cheapest and most fundamental first):
-//   400 schema   missing required fields / wrong types (Mongoose validateSync)
+//   400 schema   missing required fields / wrong types (validateSync, thrown)
 //   422 Rule 3   price > 0, publishedYear 1450..current year
 //   400 Rule 1   the referenced author exists
 //   409 Rule 2   no case-insensitive duplicate title for the same author
@@ -28,10 +31,10 @@ const pickBookFields = (body) => {
 // `changed` lists the fields being written, so a partial update only
 // re-checks what it touches.
 const checkBookRules = async (book, changed) => {
+  // Thrown rather than returned, so the central error handler formats it
+  // the same way as every other ValidationError (400).
   const schemaError = book.validateSync();
-  if (schemaError) {
-    return { status: 400, message: schemaError.message };
-  }
+  if (schemaError) throw schemaError;
 
   const ruleInput = {};
   if (changed.includes('price')) ruleInput.price = book.price;
@@ -65,102 +68,66 @@ const checkBookRules = async (book, changed) => {
   return null;
 };
 
+const bookNotFound = (res, id) =>
+  res.status(404).json({ message: `No book found with id ${id}` });
+
 // POST /books
 const createBook = async (req, res) => {
-  try {
-    const fields = pickBookFields(req.body ?? {});
-    const book = new Book(fields);
+  const book = new Book(pickBookFields(req.body ?? {}));
 
-    const failure = await checkBookRules(book, BOOK_FIELDS);
-    if (failure) {
-      return res.status(failure.status).json({ message: failure.message });
-    }
+  const failure = await checkBookRules(book, BOOK_FIELDS);
+  if (failure) return res.status(failure.status).json({ message: failure.message });
 
-    await book.save();
-    res.status(201).json(book);
-  } catch (err) {
-    if (err.name === 'ValidationError') {
-      return res.status(400).json({ message: err.message });
-    }
-    res.status(500).json({ message: 'Failed to create book' });
-  }
+  await book.save();
+  res.status(201).json(book);
 };
 
 // GET /books
 // Optional params: genre, minPrice, maxPrice, author, search, sort, order,
 // page, limit. Responds with { page, limit, total, results }, where total is
 // the number of books matching the filter (not the whole collection).
+// Invalid params throw a QueryError (400).
 const getBooks = async (req, res) => {
-  try {
-    const { filter, sort, page, limit, skip } = buildBookQuery(req.query);
+  const { filter, sort, page, limit, skip } = buildBookQuery(req.query);
 
-    const [total, results] = await Promise.all([
-      Book.countDocuments(filter),
-      Book.find(filter).sort(sort).skip(skip).limit(limit).populate('author'),
-    ]);
+  const [total, results] = await Promise.all([
+    Book.countDocuments(filter),
+    Book.find(filter).sort(sort).skip(skip).limit(limit).populate('author'),
+  ]);
 
-    res.status(200).json({ page, limit, total, results });
-  } catch (err) {
-    if (err instanceof QueryError) {
-      return res.status(400).json({ message: err.message });
-    }
-    res.status(500).json({ message: 'Failed to fetch books' });
-  }
+  res.status(200).json({ page, limit, total, results });
 };
 
 // GET /books/:id
 const getBookById = async (req, res) => {
-  try {
-    const book = await Book.findById(req.params.id).populate('author');
-    if (!book) {
-      return res.status(404).json({ message: `No book found with id ${req.params.id}` });
-    }
-    res.status(200).json(book);
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch book' });
-  }
+  const book = await Book.findById(req.params.id).populate('author');
+  if (!book) return bookNotFound(res, req.params.id);
+  res.status(200).json(book);
 };
 
 // PUT /books/:id
 // Loads the book, applies the changes in memory, runs the same rules as
 // create, and only then saves. Partial updates are supported.
 const updateBook = async (req, res) => {
-  try {
-    const book = await Book.findById(req.params.id);
-    if (!book) {
-      return res.status(404).json({ message: `No book found with id ${req.params.id}` });
-    }
+  const book = await Book.findById(req.params.id);
+  if (!book) return bookNotFound(res, req.params.id);
 
-    const fields = pickBookFields(req.body ?? {});
-    book.set(fields);
+  const fields = pickBookFields(req.body ?? {});
+  book.set(fields);
 
-    const failure = await checkBookRules(book, Object.keys(fields));
-    if (failure) {
-      return res.status(failure.status).json({ message: failure.message });
-    }
+  const failure = await checkBookRules(book, Object.keys(fields));
+  if (failure) return res.status(failure.status).json({ message: failure.message });
 
-    await book.save();
-    await book.populate('author');
-    res.status(200).json(book);
-  } catch (err) {
-    if (err.name === 'ValidationError' || err.name === 'CastError') {
-      return res.status(400).json({ message: err.message });
-    }
-    res.status(500).json({ message: 'Failed to update book' });
-  }
+  await book.save();
+  await book.populate('author');
+  res.status(200).json(book);
 };
 
 // DELETE /books/:id
 const deleteBook = async (req, res) => {
-  try {
-    const book = await Book.findByIdAndDelete(req.params.id);
-    if (!book) {
-      return res.status(404).json({ message: `No book found with id ${req.params.id}` });
-    }
-    res.status(200).json({ message: 'Book deleted', book });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to delete book' });
-  }
+  const book = await Book.findByIdAndDelete(req.params.id);
+  if (!book) return bookNotFound(res, req.params.id);
+  res.status(200).json({ message: 'Book deleted', book });
 };
 
 module.exports = {
