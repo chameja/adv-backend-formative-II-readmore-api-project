@@ -7,7 +7,7 @@
 # hitting the duplicate-title rule by accident.
 # Run `npm run seed` first for the filter and stats examples.
 
-@baseUrl = http://localhost:3000
+@baseUrl = http://localhost:5000
 @missingId = 64b7f0000000000000000000
 
 ### Health check → 200
@@ -351,7 +351,7 @@ GET {{baseUrl}}/books?page=0
 ### Stats for an author with books → 200
 GET {{baseUrl}}/authors/{{createAuthor.response.body.$._id}}/stats
 
-### Stats for an author with no books → 200 (zero count, nulls)
+### Create an author with no books → 201
 # @name emptyAuthor
 POST {{baseUrl}}/authors
 Content-Type: application/json
@@ -360,7 +360,7 @@ Content-Type: application/json
   "name": "Author With No Books"
 }
 
-###
+### Stats for an author with no books → 200 (zero count, nulls)
 GET {{baseUrl}}/authors/{{emptyAuthor.response.body.$._id}}/stats
 
 ### Stats for an unknown author → 404
