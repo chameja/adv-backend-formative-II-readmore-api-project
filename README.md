@@ -1,5 +1,8 @@
 # ReadMore API
 
+## Video Demo
+[Demo](https://www.youtube.com/watch?v=oJ6U-5Hbeng)
+
 A REST API for a bookstore, built with **Express 5**, **MongoDB** and **Mongoose**. It manages two linked entities, **authors** and **books** (one author has many books), and enforces business rules that MongoDB doesn't enforce on its own.
 
 The original assignment brief is in [ASSIGNMENT.md](ASSIGNMENT.md).
@@ -29,8 +32,6 @@ docker run -d --name readmore-mongo -p 27017:27017 mongo:7
 |-------------|----------|------------------------------------------|-------|
 | `MONGO_URI` | Yes      | `mongodb://127.0.0.1:27017/readmore`     | The server exits with an error if it's missing or the connection fails |
 | `PORT`      | No       | `5000`                                   | Defaults to 5000. If the server says the port is in use, pick another and update `baseUrl` in the request collections |
-
-`.env` is git-ignored. Only `.env.example` is committed.
 
 ### Scripts
 
