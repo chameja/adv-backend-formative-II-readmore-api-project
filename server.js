@@ -7,7 +7,7 @@ const bookRoutes = require('./routes/bookRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 const { MONGO_URI } = process.env;
 
 app.use(express.json());
@@ -38,7 +38,17 @@ async function start() {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  // Express 5 passes listen errors (e.g. the port is already in use) to this
+  // callback instead of throwing, so they must be checked here. Otherwise the
+  // server keeps running with the DB connected but isn't reachable.
+  app.listen(PORT, (err) => {
+    if (err) {
+      const reason = err.code === 'EADDRINUSE'
+        ? `port ${PORT} is already in use by another program. Set a different PORT in .env.`
+        : err.message;
+      console.error(`Failed to start the server: ${reason}`);
+      process.exit(1);
+    }
     console.log(`Server listening on http://localhost:${PORT}`);
   });
 }

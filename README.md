@@ -28,7 +28,7 @@ docker run -d --name readmore-mongo -p 27017:27017 mongo:7
 | Variable    | Required | Example                                  | Notes |
 |-------------|----------|------------------------------------------|-------|
 | `MONGO_URI` | Yes      | `mongodb://127.0.0.1:27017/readmore`     | The server exits with an error if it's missing or the connection fails |
-| `PORT`      | No       | `3000`                                   | Defaults to 3000 |
+| `PORT`      | No       | `5000`                                   | Defaults to 5000. If the server says the port is in use, pick another and update `baseUrl` in the request collections |
 
 `.env` is git-ignored. Only `.env.example` is committed.
 
@@ -40,9 +40,19 @@ docker run -d --name readmore-mongo -p 27017:27017 mongo:7
 | `npm run dev`  | Start with nodemon (restarts on file changes) |
 | `npm run seed` | **Deletes all authors and books**, then inserts 4 authors and 11 books. One author (Tsitsi Dangarembga) has no books on purpose, for the stats and delete demos |
 
+### Troubleshooting
+
+- **Requests hang or get no response:** something else may be using the port. VS Code sometimes holds port 3000 for forwarding, which is why the default here is 5000. Since the server checks for this, it now exits with `port ... is already in use` instead of starting without being reachable. Check with `ss -ltnp | grep :5000`.
+- **The server exits with `Failed to connect to MongoDB`:** MongoDB isn't running, or `MONGO_URI` is wrong. With Docker: `docker start readmore-mongo`.
+
 ### Trying the endpoints
 
-[`requests.http`](requests.http) contains every endpoint and every error case, for the VS Code [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension. Run its requests top to bottom: later requests reuse ids captured from earlier ones.
+Every endpoint and every error case is available in two formats with the same requests:
+
+- **Postman:** import [`ReadMore.postman_collection.json`](ReadMore.postman_collection.json) (*Import* → drop the file). Each request checks its expected status code, so you can run the whole collection at once with the Collection Runner. The server address is the `baseUrl` collection variable (default `http://localhost:5000`).
+- **VS Code:** [`requests.http`](requests.http), for the [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension.
+
+Run the requests top to bottom: later requests reuse ids saved by earlier ones. Run `npm run seed` first so the filter examples have data.
 
 ---
 
